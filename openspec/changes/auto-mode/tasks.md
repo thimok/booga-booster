@@ -19,7 +19,7 @@
 - [x] 3.1 Extend the telemetry/lifecycle models and service with `autoMode` and `startAuto()/stopAuto()`; verify Vitest specs for mapping and HTTP calls
 - [x] 3.2 Add Start auto / Stop auto buttons (PrimeNG, per the `primeng` MCP server) to `operation-controls` and disable power sliders, direction toggles and brake while auto is active with a visible message; verify component specs for each button state and the locked controls
 - [x] 3.3 Confirm `status-summary` disables `Stopping` and keeps Emergency Stop enabled during auto; verify with a spec
-- [ ] 3.4 Add `*.a11y.spec.ts` coverage for the auto-mode controls (active and inactive); verify AXE passes with no violations
+- [x] 3.4 Add `*.a11y.spec.ts` coverage for the auto-mode controls (active and inactive); verify AXE passes with no violations
 
 ## 4. Integration
 
