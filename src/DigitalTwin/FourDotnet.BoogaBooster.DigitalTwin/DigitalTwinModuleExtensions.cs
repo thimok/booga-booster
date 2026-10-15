@@ -10,7 +10,9 @@ using FourDotnet.BoogaBooster.DigitalTwin.Features.SetHubEngineDirection;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.SetHubEnginePower;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.SetMainEngineDirection;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.SetMainEnginePower;
+using FourDotnet.BoogaBooster.DigitalTwin.Features.StartAutoMode;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.StartRide;
+using FourDotnet.BoogaBooster.DigitalTwin.Features.StopAutoMode;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.StopRide;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -67,6 +69,8 @@ public static class DigitalTwinModuleExtensions
         services.AddScoped<ICommandHandler<BrakeEnginesCommand>, BrakeEnginesCommandHandler>();
         services.AddScoped<ICommandHandler<StartRideCommand>, StartRideCommandHandler>();
         services.AddScoped<ICommandHandler<StopRideCommand>, StopRideCommandHandler>();
+        services.AddScoped<ICommandHandler<StartAutoModeCommand>, StartAutoModeCommandHandler>();
+        services.AddScoped<ICommandHandler<StopAutoModeCommand>, StopAutoModeCommandHandler>();
         services.AddScoped<ICommandHandler<RequestRideStateTransitionCommand>, RequestRideStateTransitionCommandHandler>();
 
         // The autonomous fixed-timestep simulation loop.

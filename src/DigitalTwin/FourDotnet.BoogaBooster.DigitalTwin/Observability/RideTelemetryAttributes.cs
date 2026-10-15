@@ -22,6 +22,9 @@ internal static class RideTelemetryAttributes
     /// <summary>The lifecycle state a transition asked for.</summary>
     internal const string StateRequested = "ride.state.requested";
 
+    /// <summary>The auto-programme phase the operation found.</summary>
+    internal const string AutoPhase = "ride.auto.phase";
+
     /// <summary>The hub (0–3) the command addressed.</summary>
     internal const string HubIndex = "ride.hub.index";
 

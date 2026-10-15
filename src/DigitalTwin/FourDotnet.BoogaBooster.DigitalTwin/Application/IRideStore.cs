@@ -81,4 +81,19 @@ public interface IRideStore
 
     /// <summary>Begins a controlled ramp down (transition to <see cref="RideState.Stopping"/>).</summary>
     RideTelemetry StopRide();
+
+    /// <summary>Where the auto programme is (a cheap read for handler span tags).</summary>
+    AutoModeState AutoState { get; }
+
+    /// <summary>
+    /// Starts the predefined auto programme (ride must be <see cref="RideState.Safe"/>).
+    /// The domain rejects the request in any other state or while auto mode is active.
+    /// </summary>
+    RideTelemetry StartAutoMode();
+
+    /// <summary>
+    /// Aborts the auto programme: cuts power, applies the brakes and moves the ride to
+    /// <see cref="RideState.Stopping"/>. The domain rejects it when auto mode is not driving the ride.
+    /// </summary>
+    RideTelemetry StopAutoMode();
 }
