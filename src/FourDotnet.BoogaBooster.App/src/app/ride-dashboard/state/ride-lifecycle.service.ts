@@ -4,11 +4,21 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, Subject, interval, merge, of } from 'rxjs';
 import { catchError, finalize, map, startWith, switchMap, tap } from 'rxjs/operators';
 
-import { RideState, RideTelemetryDto, toRideState, toRideStateName } from '../models/ride.models';
+import {
+  AUTO_MODE_INACTIVE,
+  AutoModeStatus,
+  RideState,
+  RideTelemetryDto,
+  toAutoModeStatus,
+  toRideState,
+  toRideStateName,
+} from '../models/ride.models';
 
 /** Relative API base; the dev-server proxy forwards `/api` to the backend. */
 const TELEMETRY_URL = '/api/ride/telemetry';
 const STATE_URL = '/api/ride/state';
+const AUTO_START_URL = '/api/ride/auto/start';
+const AUTO_STOP_URL = '/api/ride/auto/stop';
 
 /** How often to poll for the ride's lifecycle state, in milliseconds. */
 const POLL_MS = 1000;
@@ -33,7 +43,11 @@ export class RideLifecycleService {
 
   private readonly stateSignal = signal<RideState>('idle');
   private readonly availableTransitionsSignal = signal<readonly RideState[]>([]);
+  private readonly autoModeSignal = signal<AutoModeStatus>(AUTO_MODE_INACTIVE);
   private readonly refreshTrigger = new Subject<void>();
+
+  /** Auto-mode status as last reported by the server. */
+  readonly autoMode: Signal<AutoModeStatus> = this.autoModeSignal.asReadonly();
 
   readonly state: Signal<RideState> = this.stateSignal.asReadonly();
   readonly availableTransitions: Signal<readonly RideState[]> =
@@ -51,6 +65,26 @@ export class RideLifecycleService {
   /** Trigger an immediate re-fetch of the lifecycle state. */
   refresh(): void {
     this.refreshTrigger.next();
+  }
+
+  /** Ask the server to start the automatic ride programme; rejection is tolerated. */
+  startAuto(): void {
+    this.postAuto(AUTO_START_URL);
+  }
+
+  /** Ask the server to stop the automatic ride programme; rejection is tolerated. */
+  stopAuto(): void {
+    this.postAuto(AUTO_STOP_URL);
+  }
+
+  private postAuto(url: string): void {
+    this.http
+      .post<unknown>(url, null)
+      .pipe(
+        catchError(() => of(null)),
+        finalize(() => this.refresh()),
+      )
+      .subscribe();
   }
 
   /**
@@ -73,6 +107,7 @@ export class RideLifecycleService {
       tap((dto) => {
         this.stateSignal.set(toRideState(dto.state));
         this.availableTransitionsSignal.set(dto.availableTransitions.map(toRideState));
+        this.autoModeSignal.set(toAutoModeStatus(dto.autoMode));
       }),
       map(() => undefined),
       catchError(() => of(undefined)),
