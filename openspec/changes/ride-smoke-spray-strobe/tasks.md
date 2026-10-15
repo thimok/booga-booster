@@ -15,7 +15,7 @@
 - [x] 3.1 Add smoke particle system (preallocated `Points`, soft sprite, wind drift from weather input) to `RideVisualization`
 - [x] 3.2 Add water-spray particle system (droplets arcing from the base ring under gravity, suppressed per `sprayBlockedReason`)
 - [x] 3.3 Add the stroboscope (point light + capped lighting pulse driven by `strobeLevel`)
-- [ ] 3.4 Feed weather and effect settings into `RideVisualization`; dispose all new geometry, materials, textures and lights; skip work while disabled
+- [x] 3.4 Feed weather and effect settings into `RideVisualization`; dispose all new geometry, materials, textures and lights; skip work while disabled
 - [ ] 3.5 Extend `ride-visualization.spec.ts` for the new inputs and disposal
 
 ## 4. Verification
