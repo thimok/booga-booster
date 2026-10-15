@@ -23,8 +23,8 @@
 
 ## 4. Integration
 
-- [ ] 4.1 Run `dotnet build BoogaBooster.slnx && dotnet test BoogaBooster.slnx` and `npm test` in the Angular app; verify all pass
-- [ ] 4.2 Run `openspec validate auto-mode` and, if CLAUDE.md or the Status/capability notes changed, `node .claude/skills/ai-tooling-sync/scripts/sync-ai-tooling.mjs`; verify no errors
+- [x] 4.1 Run `dotnet build BoogaBooster.slnx && dotnet test BoogaBooster.slnx` and `npm test` in the Angular app; verify all pass
+- [x] 4.2 Run `openspec validate auto-mode` and, if CLAUDE.md or the Status/capability notes changed, `node .claude/skills/ai-tooling-sync/scripts/sync-ai-tooling.mjs`; verify no errors
 
 ## Workflow follow-up
 
