@@ -20,6 +20,6 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Run `npm test` and `npm run build` in the Angular app
+- [x] 4.1 Run `npm test` and `npm run build` in the Angular app
 - [ ] 4.2 Run the app and visually verify smoke, spray, strobe cadence, weather suppression and reduced-motion behaviour
 - [ ] 4.3 Run `node .claude/skills/ai-tooling-sync/scripts/sync-ai-tooling.mjs` if any AI-tooling file was touched
