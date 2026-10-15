@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
 
 import { MotorDirection } from '../models/ride.models';
 import { RideLifecycleService } from '../state/ride-lifecycle.service';
@@ -25,17 +26,32 @@ import { RideStateService } from '../state/ride-state.service';
 @Component({
   selector: 'bb-operation-controls',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, ButtonModule],
   template: `
     <section
       class="controls"
       aria-labelledby="controls-heading"
-      [attr.aria-describedby]="isStarted() ? null : 'controls-hint'"
+      [attr.aria-describedby]="hint() ? 'controls-hint' : null"
     >
       <h2 id="controls-heading">Operation controls</h2>
 
-      @if (!isStarted()) {
-        <p id="controls-hint" class="hint">Controls become available once the ride is started.</p>
+      <div class="auto-actions" role="group" aria-label="Auto mode">
+        <p-button
+          label="Start auto"
+          severity="success"
+          [disabled]="!autoMode().canStart"
+          (onClick)="lifecycle.startAuto()"
+        />
+        <p-button
+          label="Stop auto"
+          severity="secondary"
+          [disabled]="!autoMode().canStop"
+          (onClick)="lifecycle.stopAuto()"
+        />
+      </div>
+
+      @if (hint(); as text) {
+        <p id="controls-hint" class="hint">{{ text }}</p>
       }
 
       <form [formGroup]="form">
@@ -58,7 +74,7 @@ import { RideStateService } from '../state/ride-state.service';
             <button
               type="button"
               class="toggle"
-              [disabled]="!isStarted()"
+              [disabled]="!manualEnabled()"
               [attr.aria-pressed]="millReverse()"
               aria-labelledby="mill-dir-label"
               (click)="toggleMillDirection()"
@@ -87,7 +103,7 @@ import { RideStateService } from '../state/ride-state.service';
             <button
               type="button"
               class="toggle"
-              [disabled]="!isStarted()"
+              [disabled]="!manualEnabled()"
               [attr.aria-pressed]="hubReverse()"
               aria-labelledby="hub-dir-label"
               (click)="toggleHubDirection()"
@@ -104,7 +120,7 @@ import { RideStateService } from '../state/ride-state.service';
           <button
             type="button"
             class="toggle brake"
-            [disabled]="!isStarted()"
+            [disabled]="!manualEnabled()"
             [attr.aria-pressed]="gondolaBrakeEngaged()"
             aria-labelledby="brake-label"
             (click)="toggleGondolaBrake()"
@@ -119,7 +135,7 @@ import { RideStateService } from '../state/ride-state.service';
           <button
             type="button"
             class="apply-brakes"
-            [disabled]="!isStarted()"
+            [disabled]="!manualEnabled()"
             [attr.aria-pressed]="brakesEngaged()"
             (click)="toggleEngineBrakes()"
           >
@@ -228,6 +244,10 @@ import { RideStateService } from '../state/ride-state.service';
       opacity: 0.5;
       cursor: not-allowed;
     }
+    .auto-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
     .hint {
       margin: 0;
       font-size: 0.85rem;
@@ -237,12 +257,25 @@ import { RideStateService } from '../state/ride-state.service';
 })
 export class OperationControls {
   private readonly rideState = inject(RideStateService);
-  private readonly lifecycle = inject(RideLifecycleService);
+  protected readonly lifecycle = inject(RideLifecycleService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(FormBuilder);
 
   /** Operator controls only take effect on the server while the ride runs. */
   protected readonly isStarted = computed(() => this.lifecycle.state() === 'started');
+
+  protected readonly autoMode = this.lifecycle.autoMode;
+
+  /** While auto mode runs the server rejects manual commands, so the controls lock. */
+  protected readonly manualEnabled = computed(() => this.isStarted() && !this.autoMode().isActive);
+
+  /** Visible explanation of why the manual controls are unavailable, if they are. */
+  protected readonly hint = computed(() => {
+    if (this.autoMode().isActive) {
+      return 'Auto mode is controlling the ride; manual controls are disabled.';
+    }
+    return this.isStarted() ? null : 'Controls become available once the ride is started.';
+  });
 
   protected readonly millPower = computed(() => this.rideState.mill().power);
   protected readonly hubPower = this.rideState.hubPower;
@@ -287,7 +320,7 @@ export class OperationControls {
     // is engaged, even though the "Apply brakes" toggle itself stays enabled
     // so the operator can release it again.
     effect(() => {
-      if (this.isStarted() && !this.brakesEngaged()) {
+      if (this.manualEnabled() && !this.brakesEngaged()) {
         this.form.enable({ emitEvent: false });
       } else {
         this.form.disable({ emitEvent: false });
