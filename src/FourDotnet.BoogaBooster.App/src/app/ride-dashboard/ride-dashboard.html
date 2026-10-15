@@ -18,6 +18,9 @@
       <bb-operation-controls />
     </div>
     <div class="panel">
+      <bb-effects-controls />
+    </div>
+    <div class="panel">
       <bb-weather-panel />
     </div>
   </section>
@@ -29,6 +32,8 @@
       [hubSpeedRpm]="ride.hubSpeedRpm()"
       [hubDirection]="ride.hubDirection()"
       [gondolaBrakeEngaged]="ride.gondolaBrakeEngaged()"
+      [effects]="effects.levels()"
+      [weather]="weather.conditions()"
     />
   </section>
 

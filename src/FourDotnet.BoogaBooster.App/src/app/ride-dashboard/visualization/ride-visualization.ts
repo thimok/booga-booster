@@ -5,6 +5,7 @@ import {
   ElementRef,
   afterNextRender,
   inject,
+  InjectionToken,
   input,
   viewChild,
 } from '@angular/core';
@@ -12,6 +13,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 import { MotorDirection } from '../models/ride.models';
+import { NO_EFFECTS, EffectLevels } from '../../effects/effects-state.service';
+import { smokeDrift, sprayBlockedReason } from '../../effects/effects.models';
+import { WeatherConditions } from '../../weather/models/weather.models';
+import { RideEffectGeometry, SceneEffect } from './effects/scene-effect';
+import { SmokeEffect } from './effects/smoke-effect';
+import { SprayEffect } from './effects/spray-effect';
+import { StrobeEffect } from './effects/strobe-effect';
 
 /** Ride geometry (metres) — mirrors the reference model's parameter set. */
 const P = {
@@ -40,6 +48,18 @@ const ARM_HEIGHT = P.towerHeight;
 
 /** Largest simulation step applied per frame, in seconds (guards tab-switch jumps). */
 const MAX_STEP_S = 0.05;
+
+/**
+ * Creates the WebGL renderer. A token so specs can supply a stand-in where WebGL
+ * is unavailable (jsdom); it throws when no context can be created.
+ */
+export const WEBGL_RENDERER_FACTORY = new InjectionToken<() => THREE.WebGLRenderer>(
+  'WEBGL_RENDERER_FACTORY',
+  {
+    providedIn: 'root',
+    factory: () => () => new THREE.WebGLRenderer({ antialias: true, alpha: true }),
+  },
+);
 
 /** Converts revolutions per minute to radians per second. */
 export function rpmToRadPerSec(rpm: number): number {
@@ -132,9 +152,14 @@ export class RideVisualization {
   readonly hubSpeedRpm = input.required<number>();
   readonly hubDirection = input.required<MotorDirection>();
   readonly gondolaBrakeEngaged = input.required<boolean>();
+  /** Intensity (0–100, 0 = off) each visual effect should render at. */
+  readonly effects = input<EffectLevels>(NO_EFFECTS);
+  /** Current weather; drives smoke drift and spray suppression. `null` when unknown. */
+  readonly weather = input<WeatherConditions | null>(null);
 
   private readonly hostRef = viewChild.required<ElementRef<HTMLDivElement>>('host');
   private readonly destroyRef = inject(DestroyRef);
+  private readonly createRenderer = inject(WEBGL_RENDERER_FACTORY);
 
   private renderer?: THREE.WebGLRenderer;
 
@@ -147,7 +172,7 @@ export class RideVisualization {
 
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer = this.createRenderer();
     } catch {
       // No WebGL (e.g. jsdom during tests). Leave the element empty and harmless.
       return;
@@ -181,10 +206,20 @@ export class RideVisualization {
     controls.enableDamping = true;
     controls.target.set(0, 5.5, 0);
 
-    this.addLighting(scene);
+    const hemisphere = this.addLighting(scene);
     this.addGround(scene);
     this.addStaticStructure(scene);
     const { mainPivot, hubPivots, gondolas } = this.addRig(scene);
+
+    const anchor: RideEffectGeometry = {
+      baseHalfSize: P.baseSize / 2,
+      baseTopY: P.baseHeight,
+      armHeightY: ARM_HEIGHT,
+    };
+    const smoke = new SmokeEffect(scene, anchor);
+    const spray = new SprayEffect(scene, anchor);
+    const strobe = new StrobeEffect(scene, hemisphere, anchor);
+    const sceneEffects: SceneEffect[] = [smoke, spray, strobe];
 
     const reducedMotion =
       typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -193,9 +228,12 @@ export class RideVisualization {
     let mainA = 0;
     let hubA = 0;
     let comboA = 0;
+    let effectsTime = 0;
 
     renderer.setAnimationLoop(() => {
       const dt = finiteOrZero(Math.min(clock.getDelta(), MAX_STEP_S));
+      effectsTime += dt;
+      this.updateEffects({ smoke, spray, strobe }, dt, effectsTime, reducedMotion);
       if (!reducedMotion) {
         const wm = angularVelocity(this.millSpeedRpm());
         const wh = angularVelocity(this.hubSpeedRpm());
@@ -264,6 +302,7 @@ export class RideVisualization {
       resize.disconnect();
       renderer.setAnimationLoop(null);
       controls.dispose();
+      sceneEffects.forEach((effect) => effect.dispose());
       this.disposeScene(scene);
       renderer.dispose();
       renderer.domElement.remove();
@@ -271,8 +310,29 @@ export class RideVisualization {
     });
   }
 
-  private addLighting(scene: THREE.Scene): void {
-    scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x2a2620, 1.0));
+  /**
+   * Feeds the effect settings and weather into the effect systems. Spray is also
+   * suppressed here by weather (belt and braces with the state service), and the
+   * strobe is locked out under reduced motion. Each system is idle at intensity 0.
+   */
+  private updateEffects(
+    systems: { smoke: SmokeEffect; spray: SprayEffect; strobe: StrobeEffect },
+    dt: number,
+    time: number,
+    reducedMotion: boolean,
+  ): void {
+    const levels = this.effects();
+    const weather = this.weather();
+    const spray = sprayBlockedReason(weather) === null ? levels.spray : 0;
+    const strobe = reducedMotion ? 0 : levels.strobe;
+    systems.smoke.update(dt, levels.smoke, smokeDrift(weather?.windBeaufort ?? null));
+    systems.spray.update(dt, spray);
+    systems.strobe.update(time, strobe);
+  }
+
+  private addLighting(scene: THREE.Scene): THREE.HemisphereLight {
+    const hemisphere = new THREE.HemisphereLight(0xbfd4ff, 0x2a2620, 1.0);
+    scene.add(hemisphere);
     const sun = new THREE.DirectionalLight(0xffffff, 2.2);
     sun.position.set(14, 24, 10);
     sun.castShadow = true;
@@ -286,6 +346,7 @@ export class RideVisualization {
       far: 70,
     });
     scene.add(sun);
+    return hemisphere;
   }
 
   private addGround(scene: THREE.Scene): void {

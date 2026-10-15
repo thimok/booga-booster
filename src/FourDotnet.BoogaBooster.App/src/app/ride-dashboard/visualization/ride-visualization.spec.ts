@@ -22,6 +22,18 @@ describe('RideVisualization', () => {
     expect(host.querySelector('.viz')).not.toBeNull();
   });
 
+  it('accepts effect levels and weather inputs without WebGL', () => {
+    const fixture = render();
+    expect(fixture.componentInstance.effects()).toEqual({ smoke: 0, spray: 0, strobe: 0 });
+    expect(fixture.componentInstance.weather()).toBeNull();
+
+    fixture.componentRef.setInput('effects', { smoke: 50, spray: 20, strobe: 10 });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.effects().smoke).toBe(50);
+    expect(() => fixture.destroy()).not.toThrow();
+  });
+
   it('maps rpm to radians per second', () => {
     expect(rpmToRadPerSec(60)).toBeCloseTo(2 * Math.PI, 5);
     expect(rpmToRadPerSec(0)).toBe(0);

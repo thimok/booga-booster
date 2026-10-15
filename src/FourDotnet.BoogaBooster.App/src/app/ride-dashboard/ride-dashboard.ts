@@ -1,6 +1,9 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import { OperationControls } from './controls/operation-controls';
+import { EffectsControls } from '../effects/effects-controls';
+import { EffectsStateService } from '../effects/effects-state.service';
+import { WeatherStateService } from '../weather/state/weather-state.service';
 import { GondolaPanel } from './panels/gondola-panel/gondola-panel';
 import { SecurityPanel } from './panels/security-panel/security-panel';
 import { SpeedPanel } from './panels/speed-panel/speed-panel';
@@ -22,6 +25,7 @@ import { WeatherPanel } from '../weather/weather-panel/weather-panel';
   imports: [
     StatusSummary,
     OperationControls,
+    EffectsControls,
     RideVisualization,
     SecurityPanel,
     SpeedPanel,
@@ -35,4 +39,6 @@ import { WeatherPanel } from '../weather/weather-panel/weather-panel';
 export class RideDashboard {
   protected readonly ride = inject(RideStateService);
   protected readonly lifecycle = inject(RideLifecycleService);
+  protected readonly effects = inject(EffectsStateService);
+  protected readonly weather = inject(WeatherStateService);
 }
