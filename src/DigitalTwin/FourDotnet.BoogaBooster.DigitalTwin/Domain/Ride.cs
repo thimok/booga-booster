@@ -153,6 +153,11 @@ public sealed class Ride : DomainModel
             var available = new List<RideState>(edges.Count);
             foreach (var edge in edges)
             {
+                if (IsAutoActive && IsAutoOwned(edge.Target))
+                {
+                    continue;
+                }
+
                 if (edge.Guard is null || edge.Guard(this))
                 {
                     available.Add(edge.Target);
@@ -170,6 +175,7 @@ public sealed class Ride : DomainModel
     public bool SetMainEnginePower(EnginePower power)
     {
         ArgumentNullException.ThrowIfNull(power);
+        EnsureManualControl();
         var changed = _mill.SetPower(power);
         MarkChanged(changed);
         return changed;
@@ -182,6 +188,7 @@ public sealed class Ride : DomainModel
     public bool SetHubEnginePower(EnginePower power)
     {
         ArgumentNullException.ThrowIfNull(power);
+        EnsureManualControl();
         var changed = _mill.SetAllHubPower(power);
         MarkChanged(changed);
         return changed;
@@ -190,6 +197,7 @@ public sealed class Ride : DomainModel
     /// <summary>Sets the main (mill) engine rotation direction.</summary>
     public bool SetMainEngineDirection(MotorDirection direction)
     {
+        EnsureManualControl();
         var changed = _mill.SetDirection(direction);
         MarkChanged(changed);
         return changed;
@@ -201,6 +209,7 @@ public sealed class Ride : DomainModel
     /// </summary>
     public bool SetHubEngineDirection(MotorDirection direction)
     {
+        EnsureManualControl();
         var changed = _mill.SetAllHubDirection(direction);
         MarkChanged(changed);
         return changed;
@@ -302,6 +311,8 @@ public sealed class Ride : DomainModel
     /// </summary>
     public void SetEngineBrakes(bool engaged)
     {
+        EnsureManualControl();
+
         if (engaged)
         {
             _mill.EngageBrakes();
@@ -317,6 +328,8 @@ public sealed class Ride : DomainModel
     /// <summary>Engages or releases a specific gondola's yaw brake.</summary>
     public void SetGondolaBrake(int hubIndex, int gondolaIndex, GondolaBrakeState brake)
     {
+        EnsureManualControl();
+
         var gondola = _mill.GetHub(hubIndex).GetGondola(gondolaIndex);
         if (brake == GondolaBrakeState.Engaged)
         {
@@ -340,7 +353,16 @@ public sealed class Ride : DomainModel
     /// Thrown when the transition is not legal from the current state, or its guard
     /// (for example the ride-safety interlock) is not satisfied.
     /// </exception>
-    public void RequestTransition(RideState target) => TransitionTo(target);
+    public void RequestTransition(RideState target)
+    {
+        if (IsAutoActive && IsAutoOwned(target))
+        {
+            throw new DomainValidationException(
+                $"The ride cannot be moved to {target} manually while auto mode is active; stop auto mode or use Emergency Stop.");
+        }
+
+        TransitionTo(target);
+    }
 
     /// <summary>
     /// Starts the predefined auto programme. Legal only from <see cref="RideState.Safe"/>
@@ -596,6 +618,25 @@ public sealed class Ride : DomainModel
         TransitionTo(RideState.Stopping);
         _autoState = AutoModeState.Braking;
     }
+
+    /// <summary>
+    /// The one manual-control lock: every operator command that changes power, direction
+    /// or brakes calls this first, so a future manual mutator is guarded by adding a
+    /// single line. The auto programme itself drives the mill directly and never passes
+    /// through it.
+    /// </summary>
+    /// <exception cref="DomainValidationException">Auto mode is active.</exception>
+    private void EnsureManualControl()
+    {
+        if (IsAutoActive)
+        {
+            throw new DomainValidationException(
+                "Manual control is locked while auto mode is active; stop auto mode or use Emergency Stop.");
+        }
+    }
+
+    /// <summary>The lifecycle targets only the auto programme may enter while it is active.</summary>
+    private static bool IsAutoOwned(RideState target) => target is RideState.Started or RideState.Stopping;
 
     private void ClearAutoMode()
     {
