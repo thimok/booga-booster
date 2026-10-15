@@ -26,14 +26,19 @@ namespace FourDotnet.BoogaBooster.DigitalTwin.Abstractions;
 /// <param name="Mill">The central mill's telemetry.</param>
 /// <param name="Hubs">The four hubs' telemetry.</param>
 /// <param name="Gondolas">The sixteen gondolas' telemetry.</param>
+/// <param name="AutoMode">
+/// The auto programme's status: whether it is active, its phase, and whether a
+/// start-auto / stop-auto request is currently legal.
+/// </param>
 public sealed record RideTelemetry(
-    RideState State,
-    double SimulationTimeSeconds,
-    bool IsSafeToStart,
-    RideSafetyReason SafetyReason,
-    IReadOnlyList<RideState> AvailableTransitions,
-    int BoardedPassengerCount,
-    bool BrakesEngaged,
-    MillTelemetry Mill,
-    IReadOnlyList<HubTelemetry> Hubs,
-    IReadOnlyList<GondolaTelemetry> Gondolas);
+   RideState State,
+   double SimulationTimeSeconds,
+   bool IsSafeToStart,
+   RideSafetyReason SafetyReason,
+   IReadOnlyList<RideState> AvailableTransitions,
+   int BoardedPassengerCount,
+   bool BrakesEngaged,
+   MillTelemetry Mill,
+   IReadOnlyList<HubTelemetry> Hubs,
+   IReadOnlyList<GondolaTelemetry> Gondolas,
+   AutoModeTelemetry AutoMode);

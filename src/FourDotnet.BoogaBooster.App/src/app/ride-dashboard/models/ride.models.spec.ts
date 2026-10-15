@@ -231,6 +231,43 @@ describe('mapRideTelemetry', () => {
     expect(model.brakesEngaged).toBe(false);
   });
 
+  it('defaults autoMode to inactive when the wire field is absent', () => {
+    const model = mapRideTelemetry(buildDto());
+    expect(model.autoMode).toEqual({
+      isActive: false,
+      phase: 'inactive',
+      canStart: false,
+      canStop: false,
+    });
+  });
+
+  it('maps autoMode with a numeric phase', () => {
+    const model = mapRideTelemetry(
+      buildDto({ autoMode: { isActive: true, phase: 3, canStart: false, canStop: true } }),
+    );
+    expect(model.autoMode).toEqual({
+      isActive: true,
+      phase: 'wind-down',
+      canStart: false,
+      canStop: true,
+    });
+  });
+
+  it('maps autoMode with a PascalCase phase name', () => {
+    const model = mapRideTelemetry(
+      buildDto({ autoMode: { isActive: true, phase: 'SpinUp', canStart: false, canStop: true } }),
+    );
+    expect(model.autoMode?.phase).toBe('spin-up');
+  });
+
+  it('maps autoMode canStart from the wire field', () => {
+    const model = mapRideTelemetry(
+      buildDto({ autoMode: { isActive: false, phase: 0, canStart: true, canStop: false } }),
+    );
+    expect(model.autoMode?.canStart).toBe(true);
+    expect(model.autoMode?.phase).toBe('inactive');
+  });
+
   it('preserves the gondola and seat counts', () => {
     const model = mapRideTelemetry(buildDto());
     expect(model.gondolas).toHaveLength(GONDOLA_COUNT);

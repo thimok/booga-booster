@@ -16,6 +16,27 @@
 export type RideState =
   'idle' | 'loading' | 'safe' | 'started' | 'stopping' | 'offloading' | 'emergency-stop';
 
+/** Phase of the automatic ride programme. */
+export type AutoPhase = 'inactive' | 'spin-up' | 'cruise' | 'wind-down' | 'braking';
+
+/** Auto-mode status reported by the server. */
+export interface AutoModeStatus {
+  readonly isActive: boolean;
+  readonly phase: AutoPhase;
+  /** Whether a start-auto request is legal right now. */
+  readonly canStart: boolean;
+  /** Whether a stop-auto request is legal right now. */
+  readonly canStop: boolean;
+}
+
+/** Raw wire shape of the `autoMode` telemetry field; `phase` may be an index or a name. */
+export interface AutoModeStreamDto {
+  readonly isActive: boolean;
+  readonly phase: number | string;
+  readonly canStart: boolean;
+  readonly canStop: boolean;
+}
+
 /** Direction a motor drives its rotation. */
 export type MotorDirection = 'forward' | 'reverse';
 
@@ -119,6 +140,8 @@ export interface RideTelemetry {
    * it is absent (see `RideStateService.occupiedSeats`).
    */
   readonly boardedPassengerCount?: number;
+  /** Auto-mode status; absent on older frames and treated as inactive. */
+  readonly autoMode?: AutoModeStatus;
 }
 
 /**
@@ -133,6 +156,7 @@ export interface RideTelemetry {
 export interface RideTelemetryDto {
   readonly state: number | string;
   readonly availableTransitions: readonly (number | string)[];
+  readonly autoMode?: AutoModeStreamDto;
 }
 
 /**
@@ -234,6 +258,7 @@ export interface RideTelemetryStreamDto {
   readonly gondolas: readonly RideTelemetryGondolaStreamDto[];
   readonly boardedPassengerCount: number;
   readonly brakesEngaged?: boolean;
+  readonly autoMode?: AutoModeStreamDto;
 }
 
 /** The backend's `GondolaBrakeState` names in index order (`0=Engaged, 1=Released`). */
@@ -259,6 +284,31 @@ function enumIndexOf(value: number | string, names: readonly string[]): number {
   }
   const index = names.findIndex((name) => name.toLowerCase() === value.toLowerCase());
   return index === -1 ? 0 : index;
+}
+
+/** The backend's auto-programme phase names in index order. */
+const AUTO_PHASE_NAMES = ['Inactive', 'SpinUp', 'Cruise', 'WindDown', 'Braking'] as const;
+const AUTO_PHASES: readonly AutoPhase[] = ['inactive', 'spin-up', 'cruise', 'wind-down', 'braking'];
+
+/** Auto-mode status that applies when a frame carries none. */
+export const AUTO_MODE_INACTIVE: AutoModeStatus = {
+  isActive: false,
+  phase: 'inactive',
+  canStart: false,
+  canStop: false,
+};
+
+/** Maps the wire `autoMode` object; a missing one means auto mode is inactive. */
+export function toAutoModeStatus(dto: AutoModeStreamDto | undefined): AutoModeStatus {
+  if (!dto) {
+    return AUTO_MODE_INACTIVE;
+  }
+  return {
+    isActive: dto.isActive,
+    phase: AUTO_PHASES[enumIndexOf(dto.phase, AUTO_PHASE_NAMES)] ?? 'inactive',
+    canStart: dto.canStart,
+    canStop: dto.canStop,
+  };
 }
 
 /** Whether the wire `GondolaBrakeState` value represents the engaged state. */
@@ -368,6 +418,7 @@ export function mapRideTelemetry(dto: RideTelemetryStreamDto): RideTelemetry {
     gondolaBrakeEngaged: dto.gondolas.every((gondola) => brakeEngaged(gondola.brake)),
     // Defaults to released for an older frame that doesn't carry the field.
     brakesEngaged: dto.brakesEngaged ?? false,
+    autoMode: toAutoModeStatus(dto.autoMode),
   };
 }
 

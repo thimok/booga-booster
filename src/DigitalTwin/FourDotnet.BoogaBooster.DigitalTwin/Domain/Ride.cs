@@ -51,6 +51,8 @@ public sealed class Ride : DomainModel
 
     private readonly GreatMill _mill = new();
     private RideState _state = RideState.Idle;
+    private AutoModeState _autoState = AutoModeState.Inactive;
+    private double _autoElapsedSeconds;
     private double _simulationTimeSeconds;
 
     private Ride()
@@ -66,6 +68,31 @@ public sealed class Ride : DomainModel
 
     /// <summary>Simulated time elapsed since the twin started (seconds).</summary>
     public double SimulationTimeSeconds => _simulationTimeSeconds;
+
+    /// <summary>
+    /// Where the auto programme is: <see cref="AutoModeState.Inactive"/> when none runs,
+    /// otherwise the current phase. Independent of <see cref="CurrentState"/>.
+    /// </summary>
+    public AutoModeState AutoState => _autoState;
+
+    /// <summary>
+    /// <c>true</c> from a successful start of auto mode until the ride comes to rest (or
+    /// an Emergency Stop). While <c>true</c> the programme owns the controls.
+    /// </summary>
+    public bool IsAutoActive => _autoState != AutoModeState.Inactive;
+
+    /// <summary>
+    /// <c>true</c> when a start-auto request is legal right now: the ride is
+    /// <see cref="RideState.Safe"/>, every interlock holds and no programme runs.
+    /// </summary>
+    public bool CanStartAutoMode => !IsAutoActive && _state == RideState.Safe && IsSafe;
+
+    /// <summary>
+    /// <c>true</c> when a stop-auto request is legal right now: the programme is still
+    /// driving the motors. Once it is <see cref="AutoModeState.Braking"/> the ride is
+    /// already stopping, so there is nothing left to abort.
+    /// </summary>
+    public bool CanStopAutoMode => _autoState is AutoModeState.SpinUp or AutoModeState.Cruise or AutoModeState.WindDown;
 
     /// <summary>The central mill (and, through it, the hubs and gondolas).</summary>
     public GreatMill Mill => _mill;
@@ -103,7 +130,13 @@ public sealed class Ride : DomainModel
     public int EmptyGondolaCount => _mill.EmptyGondolaCount;
 
     /// <summary>The free seats a boarding group can take — two per empty gondola.</summary>
-    public int FreeSeats => _mill.EmptyGondolaCount * RideParameters.SeatsPerGondola;
+    public int GroupBoardableSeats => _mill.EmptyGondolaCount * RideParameters.SeatsPerGondola;
+
+    /// <summary>
+    /// Every unoccupied seat on the ride, including the free seat beside a lone
+    /// rider — the capacity single riders may fill (see <see cref="SeatSingleRiders"/>).
+    /// </summary>
+    public int FreeSeatCount => _mill.FreeSeatCount;
 
     /// <summary><c>true</c> when the ride is at rest and safe to be loaded/started.</summary>
     public bool IsSafeToStart =>
@@ -126,6 +159,11 @@ public sealed class Ride : DomainModel
             var available = new List<RideState>(edges.Count);
             foreach (var edge in edges)
             {
+                if (IsAutoActive && IsAutoOwned(edge.Target))
+                {
+                    continue;
+                }
+
                 if (edge.Guard is null || edge.Guard(this))
                 {
                     available.Add(edge.Target);
@@ -143,6 +181,7 @@ public sealed class Ride : DomainModel
     public bool SetMainEnginePower(EnginePower power)
     {
         ArgumentNullException.ThrowIfNull(power);
+        EnsureManualControl();
         var changed = _mill.SetPower(power);
         MarkChanged(changed);
         return changed;
@@ -155,6 +194,7 @@ public sealed class Ride : DomainModel
     public bool SetHubEnginePower(EnginePower power)
     {
         ArgumentNullException.ThrowIfNull(power);
+        EnsureManualControl();
         var changed = _mill.SetAllHubPower(power);
         MarkChanged(changed);
         return changed;
@@ -163,6 +203,7 @@ public sealed class Ride : DomainModel
     /// <summary>Sets the main (mill) engine rotation direction.</summary>
     public bool SetMainEngineDirection(MotorDirection direction)
     {
+        EnsureManualControl();
         var changed = _mill.SetDirection(direction);
         MarkChanged(changed);
         return changed;
@@ -174,6 +215,7 @@ public sealed class Ride : DomainModel
     /// </summary>
     public bool SetHubEngineDirection(MotorDirection direction)
     {
+        EnsureManualControl();
         var changed = _mill.SetAllHubDirection(direction);
         MarkChanged(changed);
         return changed;
@@ -266,6 +308,63 @@ public sealed class Ride : DomainModel
     }
 
     /// <summary>
+    /// Seats individual riders into any unoccupied seats — including the free seat
+    /// beside a passenger from an earlier group or another single rider — while the
+    /// ride is idle or loading. This is the one deliberate exception to "members of
+    /// different parties never share a gondola": it applies to single riders only,
+    /// and <see cref="BoardGroup"/> still takes whole empty gondolas exclusively.
+    /// Boarding moves the ride into <see cref="RideState.Loading"/>.
+    /// </summary>
+    /// <param name="selectSeats">
+    /// Chooses which free seats the riders take: given the number of free seats and
+    /// the number of riders, it returns that many distinct indices into the free-seat
+    /// list. When omitted the free seats are filled in their natural order.
+    /// </param>
+    /// <exception cref="DomainValidationException">
+    /// There are no riders, the ride is not idle or loading, or there are more riders
+    /// than free seats (nobody is seated in that case).
+    /// </exception>
+    public void SeatSingleRiders(
+        IReadOnlyList<PassengerWeight> riders,
+        Func<TimeSpan> restraintCloseDelay,
+        Func<int, int, IReadOnlyList<int>>? selectSeats = null)
+    {
+        ArgumentNullException.ThrowIfNull(riders);
+        ArgumentNullException.ThrowIfNull(restraintCloseDelay);
+
+        if (riders.Count == 0)
+        {
+            throw new DomainValidationException("At least one single rider is required.");
+        }
+
+        if (_state is not (RideState.Idle or RideState.Loading))
+        {
+            throw new DomainValidationException($"Single riders can only board while the ride is idle or loading (state: {_state}).");
+        }
+
+        var free = _mill.FreeSeats().ToArray();
+        if (riders.Count > free.Length)
+        {
+            throw new DomainValidationException(
+                $"{riders.Count} single rider(s) need as many free seats but only {free.Length} are free.");
+        }
+
+        var picks = selectSeats is null
+            ? Enumerable.Range(0, riders.Count)
+            : selectSeats(free.Length, riders.Count);
+
+        var rider = 0;
+        foreach (var index in picks)
+        {
+            var (gondola, seat) = free[index];
+            gondola.Board(seat, new Passenger(riders[rider++]), restraintCloseDelay());
+        }
+
+        _state = RideState.Loading;
+        MarkChanged();
+    }
+
+    /// <summary>
     /// Engages or releases the engine brake on the mill and every hub. Engaging cuts
     /// drive power to zero and applies a strong braking torque, bringing a moving
     /// ride to a complete stop within a couple of seconds; releasing lets the ride be
@@ -275,6 +374,8 @@ public sealed class Ride : DomainModel
     /// </summary>
     public void SetEngineBrakes(bool engaged)
     {
+        EnsureManualControl();
+
         if (engaged)
         {
             _mill.EngageBrakes();
@@ -290,6 +391,8 @@ public sealed class Ride : DomainModel
     /// <summary>Engages or releases a specific gondola's yaw brake.</summary>
     public void SetGondolaBrake(int hubIndex, int gondolaIndex, GondolaBrakeState brake)
     {
+        EnsureManualControl();
+
         var gondola = _mill.GetHub(hubIndex).GetGondola(gondolaIndex);
         if (brake == GondolaBrakeState.Engaged)
         {
@@ -314,6 +417,65 @@ public sealed class Ride : DomainModel
     /// (for example the ride-safety interlock) is not satisfied.
     /// </exception>
     public void RequestTransition(RideState target)
+    {
+        if (IsAutoActive && IsAutoOwned(target))
+        {
+            throw new DomainValidationException(
+                $"The ride cannot be moved to {target} manually while auto mode is active; stop auto mode or use Emergency Stop.");
+        }
+
+        TransitionTo(target);
+    }
+
+    /// <summary>
+    /// Starts the predefined auto programme. Legal only from <see cref="RideState.Safe"/>
+    /// with every interlock satisfied: performs <c>Safe → Started</c> through the guarded
+    /// state machine and arms the programme at its first phase.
+    /// </summary>
+    /// <exception cref="DomainValidationException">
+    /// The ride is not <see cref="RideState.Safe"/>, is not safe to start, or auto mode is already active.
+    /// </exception>
+    public void StartAutoMode()
+    {
+        if (IsAutoActive)
+        {
+            throw new DomainValidationException("Auto mode is already active.");
+        }
+
+        if (_state != RideState.Safe)
+        {
+            throw new DomainValidationException($"Auto mode can only start while the ride is Safe (state: {_state}).");
+        }
+
+        TransitionTo(RideState.Started);
+        _autoElapsedSeconds = 0d;
+        _autoState = AutoModeState.SpinUp;
+    }
+
+    /// <summary>
+    /// Aborts the auto programme: cuts power, applies the brakes and moves the ride to
+    /// <see cref="RideState.Stopping"/>, after which it settles and offloads as usual.
+    /// </summary>
+    /// <exception cref="DomainValidationException">The programme is not currently driving the ride.</exception>
+    public void StopAutoMode()
+    {
+        if (!CanStopAutoMode)
+        {
+            throw new DomainValidationException(
+                IsAutoActive
+                    ? "Auto mode has already ended and the ride is braking to rest."
+                    : "Auto mode is not active.");
+        }
+
+        BeginAutoBraking();
+    }
+
+    /// <summary>
+    /// The single transition engine behind <see cref="RequestTransition"/> and the auto
+    /// programme: looks the edge up in the table, evaluates its guard, runs the entry
+    /// side-effects and enters the new state.
+    /// </summary>
+    private void TransitionTo(RideState target)
     {
         if (!OperatorTransitions.TryGetValue(_state, out var edges))
         {
@@ -377,7 +539,14 @@ public sealed class Ride : DomainModel
             _state = RideState.Loading;
         }
 
-        // 3. Physics while in motion; a stopping/emergency ride settles into offloading
+        // 3. The auto programme (if driving) commands this step's power; when it runs out
+        //    it hands the ride to a controlled stop before the physics below runs.
+        if (CanStopAutoMode)
+        {
+            AdvanceAutoProgramme(dt.TotalSeconds);
+        }
+
+        // 4. Physics while in motion; a stopping/emergency ride settles into offloading
         //    (releasing the safety constraints) once it reaches a complete rest.
         if (_state is RideState.Started or RideState.Stopping or RideState.EmergencyStop)
         {
@@ -391,7 +560,7 @@ public sealed class Ride : DomainModel
             }
         }
 
-        // 4. Offloading returns to idle once the last rider has left.
+        // 5. Offloading returns to idle once the last rider has left.
         if (_state == RideState.Offloading && _mill.IsEmpty)
         {
             _state = RideState.Idle;
@@ -430,7 +599,8 @@ public sealed class Ride : DomainModel
             _mill.BrakesEngaged,
             _mill.ToTelemetry(),
             hubs,
-            gondolas);
+            gondolas,
+            new AutoModeTelemetry(IsAutoActive, _autoState, CanStartAutoMode, CanStopAutoMode));
     }
 
     /// <summary>Runs the entry side-effects for the state being entered.</summary>
@@ -468,18 +638,74 @@ public sealed class Ride : DomainModel
         _mill.EngageAllGondolaBrakes();
     }
 
-    /// <summary>Immediately cuts power and engages the engine brake from an active state.</summary>
+    /// <summary>Immediately cuts power and engages the engine brake from an active state; any auto programme ends.</summary>
     private void EnterEmergencyStop()
     {
         _mill.EngageBrakes();
         _mill.EngageAllGondolaBrakes();
+        ClearAutoMode();
     }
 
-    /// <summary>The ride is at rest: releases the engine brake and the safety constraints so passengers can leave.</summary>
+    /// <summary>The ride is at rest: releases the engine brake and the safety constraints so passengers can leave; auto mode ends.</summary>
     private void EnterOffloading()
     {
         _mill.ReleaseBrakes();
         _mill.ReleaseAllRestraints();
+        ClearAutoMode();
+    }
+
+    /// <summary>
+    /// Commands the programme's setpoints for the step just begun. Setpoints go through
+    /// the mill setters the manual commands use, bypassing the manual-control lock.
+    /// A new <see cref="EnginePower"/> per step (120 Hz, two tiny objects) is far below
+    /// the cost of the physics step itself, so the value object is kept for validation.
+    /// </summary>
+    private void AdvanceAutoProgramme(double dtSeconds)
+    {
+        _autoElapsedSeconds += dtSeconds;
+        var setpoint = AutoProgramme.Evaluate(_autoElapsedSeconds);
+
+        if (!setpoint.IsDriving)
+        {
+            BeginAutoBraking();
+            return;
+        }
+
+        _autoState = setpoint.Phase;
+        _mill.SetPower(new EnginePower(setpoint.MillPowerPercent));
+        _mill.SetAllHubPower(new EnginePower(setpoint.HubPowerPercent));
+    }
+
+    /// <summary>Hands the ride to a controlled stop (power cut, brakes applied) and marks the programme as braking.</summary>
+    private void BeginAutoBraking()
+    {
+        TransitionTo(RideState.Stopping);
+        _autoState = AutoModeState.Braking;
+    }
+
+    /// <summary>
+    /// The one manual-control lock: every operator command that changes power, direction
+    /// or brakes calls this first, so a future manual mutator is guarded by adding a
+    /// single line. The auto programme itself drives the mill directly and never passes
+    /// through it.
+    /// </summary>
+    /// <exception cref="DomainValidationException">Auto mode is active.</exception>
+    private void EnsureManualControl()
+    {
+        if (IsAutoActive)
+        {
+            throw new DomainValidationException(
+                "Manual control is locked while auto mode is active; stop auto mode or use Emergency Stop.");
+        }
+    }
+
+    /// <summary>The lifecycle targets only the auto programme may enter while it is active.</summary>
+    private static bool IsAutoOwned(RideState target) => target is RideState.Started or RideState.Stopping;
+
+    private void ClearAutoMode()
+    {
+        _autoState = AutoModeState.Inactive;
+        _autoElapsedSeconds = 0d;
     }
 
     private RideSafetyReason EvaluateSafety()

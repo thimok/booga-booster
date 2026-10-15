@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { RIDE_TELEMETRY_SOURCE } from '../data/ride-telemetry-source';
-import { RideState } from '../models/ride.models';
+import { AUTO_MODE_INACTIVE, AutoModeStatus, RideState } from '../models/ride.models';
 import { RideLifecycleService } from '../state/ride-lifecycle.service';
 import { FakeRideTelemetrySource } from '../testing/fake-ride-telemetry-source';
 import { OperationControls } from './operation-controls';
@@ -17,6 +17,16 @@ class StubRideLifecycleService {
 
   readonly state = this.stateSignal.asReadonly();
   readonly availableTransitions = signal<readonly RideState[]>([]).asReadonly();
+
+  private readonly autoModeSignal = signal<AutoModeStatus>(AUTO_MODE_INACTIVE);
+  readonly autoMode = this.autoModeSignal.asReadonly();
+
+  readonly startAuto = vi.fn();
+  readonly stopAuto = vi.fn();
+
+  setAutoMode(status: AutoModeStatus): void {
+    this.autoModeSignal.set(status);
+  }
 
   setState(state: RideState): void {
     this.stateSignal.set(state);
@@ -200,5 +210,116 @@ describe('OperationControls', () => {
 
     expect(millSlider.disabled).toBe(false);
     expect(hubSlider.disabled).toBe(false);
+  });
+
+  describe('auto mode', () => {
+    const active: AutoModeStatus = {
+      isActive: true,
+      phase: 'cruise',
+      canStart: false,
+      canStop: true,
+    };
+    const startable: AutoModeStatus = {
+      isActive: false,
+      phase: 'inactive',
+      canStart: true,
+      canStop: false,
+    };
+
+    function autoButton(host: HTMLElement, label: string): HTMLButtonElement {
+      const button = Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find(
+        (candidate) => candidate.textContent?.trim() === label,
+      );
+      if (!button) {
+        throw new Error(`No button "${label}"`);
+      }
+      return button;
+    }
+
+    it('lights Start auto and disables Stop auto when a start is legal', () => {
+      lifecycle.setState('safe');
+      lifecycle.setAutoMode(startable);
+      const host = render().nativeElement as HTMLElement;
+
+      expect(autoButton(host, 'Start auto').disabled).toBe(false);
+      expect(autoButton(host, 'Stop auto').disabled).toBe(true);
+    });
+
+    it('lights Stop auto and disables Start auto while auto runs', () => {
+      lifecycle.setAutoMode(active);
+      const host = render().nativeElement as HTMLElement;
+
+      expect(autoButton(host, 'Start auto').disabled).toBe(true);
+      expect(autoButton(host, 'Stop auto').disabled).toBe(false);
+    });
+
+    it('disables both buttons when the ride is idle', () => {
+      lifecycle.setState('idle');
+      const host = render().nativeElement as HTMLElement;
+
+      expect(autoButton(host, 'Start auto').disabled).toBe(true);
+      expect(autoButton(host, 'Stop auto').disabled).toBe(true);
+    });
+
+    it('requests start and stop from the lifecycle service', () => {
+      lifecycle.setAutoMode({ ...startable, canStop: true });
+      const host = render().nativeElement as HTMLElement;
+
+      autoButton(host, 'Start auto').click();
+      autoButton(host, 'Stop auto').click();
+
+      expect(lifecycle.startAuto).toHaveBeenCalledTimes(1);
+      expect(lifecycle.stopAuto).toHaveBeenCalledTimes(1);
+    });
+
+    it('locks sliders, direction toggles and brakes and explains why', () => {
+      lifecycle.setAutoMode(active);
+      const host = render().nativeElement as HTMLElement;
+
+      expect((host.querySelector('#mill-power') as HTMLInputElement).disabled).toBe(true);
+      expect((host.querySelector('#hub-power') as HTMLInputElement).disabled).toBe(true);
+      host.querySelectorAll<HTMLButtonElement>('.toggle, .apply-brakes').forEach((button) => {
+        expect(button.disabled).toBe(true);
+      });
+      expect(host.querySelector('#controls-hint')?.textContent).toContain(
+        'Auto mode is controlling the ride',
+      );
+    });
+
+    it('sends no commands from locked controls', () => {
+      lifecycle.setAutoMode(active);
+      const host = render().nativeElement as HTMLElement;
+
+      host
+        .querySelectorAll<HTMLButtonElement>('.toggle, .apply-brakes')
+        .forEach((button) => button.click());
+
+      expect(source.commands).toEqual([]);
+    });
+
+    it('shows the programme power on the sliders', () => {
+      lifecycle.setAutoMode(active);
+      const fixture = render();
+      source.setTelemetry({
+        ...source.telemetry(),
+        mill: { power: 40, direction: 'forward', speedRpm: 3 },
+      });
+      fixture.detectChanges();
+
+      expect((fixture.nativeElement.querySelector('#mill-power') as HTMLInputElement).value).toBe(
+        '40',
+      );
+    });
+
+    it('returns the manual controls once auto mode has ended', () => {
+      lifecycle.setAutoMode(active);
+      const fixture = render();
+      lifecycle.setAutoMode(AUTO_MODE_INACTIVE);
+      fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect((host.querySelector('#mill-power') as HTMLInputElement).disabled).toBe(false);
+      expect(host.querySelector('#controls-hint')).toBeNull();
+    });
   });
 });

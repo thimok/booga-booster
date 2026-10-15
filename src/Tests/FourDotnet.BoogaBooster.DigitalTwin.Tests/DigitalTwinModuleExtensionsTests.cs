@@ -10,7 +10,9 @@ using FourDotnet.BoogaBooster.DigitalTwin.Features.SetHubEngineDirection;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.SetHubEnginePower;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.SetMainEngineDirection;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.SetMainEnginePower;
+using FourDotnet.BoogaBooster.DigitalTwin.Features.StartAutoMode;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.StartRide;
+using FourDotnet.BoogaBooster.DigitalTwin.Features.StopAutoMode;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.StopRide;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -72,6 +74,8 @@ public sealed class DigitalTwinModuleExtensionsTests
         Assert.NotNull(sp.GetRequiredService<ICommandHandler<BrakeEnginesCommand>>());
         Assert.NotNull(sp.GetRequiredService<ICommandHandler<StartRideCommand>>());
         Assert.NotNull(sp.GetRequiredService<ICommandHandler<StopRideCommand>>());
+        Assert.NotNull(sp.GetRequiredService<ICommandHandler<StartAutoModeCommand>>());
+        Assert.NotNull(sp.GetRequiredService<ICommandHandler<StopAutoModeCommand>>());
         Assert.NotNull(sp.GetRequiredService<ICommandHandler<RequestRideStateTransitionCommand>>());
     }
 

@@ -107,6 +107,28 @@ public static class RideParameters
     /// </summary>
     public const double MaxPassengerLoadKg = 3200d;
 
+    // --- Auto programme (docs/06-auto-programme.md) ---
+    /// <summary>Spin-up phase: mill and hub power ramp linearly from zero to their peaks (s).</summary>
+    public const double AutoSpinUpSeconds = 30d;
+
+    /// <summary>Cruise phase: peak power is held (s).</summary>
+    public const double AutoCruiseSeconds = 45d;
+
+    /// <summary>Wind-down phase: power ramps linearly back to zero before the brakes apply (s).</summary>
+    public const double AutoWindDownSeconds = 20d;
+
+    /// <summary>Peak mill throttle of the auto programme (%), chosen below the mill warn speed.</summary>
+    public const double AutoMillPeakPowerPercent = 40d;
+
+    /// <summary>Peak hub throttle of the auto programme (%), chosen below the hub warn speed.</summary>
+    public const double AutoHubPeakPowerPercent = 40d;
+
+    /// <summary>Over-speed warn threshold for the mill (rpm); the auto programme must stay below it.</summary>
+    public const double MillWarnRpm = 15d;
+
+    /// <summary>Over-speed warn threshold for each hub (rpm); the auto programme must stay below it.</summary>
+    public const double HubWarnRpm = 26d;
+
     // --- Natural passenger behaviour ---
     /// <summary>Earliest a seated passenger pulls their restraint down.</summary>
     public static readonly TimeSpan MinRestraintCloseDelay = TimeSpan.FromSeconds(5);

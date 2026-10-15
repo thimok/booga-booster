@@ -61,6 +61,17 @@ public sealed class RideStore : IRideStore, IRideTelemetryProvider
         }
     }
 
+    public int FreeSeatCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _ride.FreeSeatCount;
+            }
+        }
+    }
+
     public RideTelemetry Advance(TimeSpan dt)
     {
         lock (_gate)
@@ -128,6 +139,17 @@ public sealed class RideStore : IRideStore, IRideTelemetryProvider
         }
     }
 
+    public RideTelemetry SeatSingleRiders(IReadOnlyList<PassengerWeight> riders)
+    {
+        ArgumentNullException.ThrowIfNull(riders);
+
+        lock (_gate)
+        {
+            _ride.SeatSingleRiders(riders, _sampler.NextRestraintCloseDelay, _sampler.NextGondolaSelection);
+            return _ride.ToTelemetry();
+        }
+    }
+
     public RideTelemetry SetGondolaBrake(int hubIndex, int gondolaIndex, GondolaBrakeState brake)
     {
         lock (_gate)
@@ -169,6 +191,35 @@ public sealed class RideStore : IRideStore, IRideTelemetryProvider
         lock (_gate)
         {
             _ride.RequestTransition(RideState.Stopping);
+            return _ride.ToTelemetry();
+        }
+    }
+
+    public AutoModeState AutoState
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _ride.AutoState;
+            }
+        }
+    }
+
+    public RideTelemetry StartAutoMode()
+    {
+        lock (_gate)
+        {
+            _ride.StartAutoMode();
+            return _ride.ToTelemetry();
+        }
+    }
+
+    public RideTelemetry StopAutoMode()
+    {
+        lock (_gate)
+        {
+            _ride.StopAutoMode();
             return _ride.ToTelemetry();
         }
     }
