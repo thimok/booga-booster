@@ -2,7 +2,7 @@
 
 - [x] 1.1 Add `effects/effects.models.ts` with named constants (`MAX_STROBE_HZ = 3`, particle caps, drift scale) and pure helpers: `clampIntensity`, `strobeFlashHz`, `strobeLevel`, `sprayBlockedReason`, `smokeDrift`
 - [x] 1.2 Add specs for the helpers, including the ≤ 3 flashes/second cap at every intensity and the freezing/strong-wind spray suppression
-- [ ] 1.3 Add `EffectsStateService` (signals for smoke/spray/strobe enabled + intensity, reduced-motion signal, effective-value computeds; all off by default, never persisted) with specs
+- [x] 1.3 Add `EffectsStateService` (signals for smoke/spray/strobe enabled + intensity, reduced-motion signal, effective-value computeds; all off by default, never persisted) with specs
 
 ## 2. Effects controls UI
 
