@@ -10,7 +10,7 @@
 
 ## 2. Backend surface
 
-- [ ] 2.1 Add `AutoModeTelemetry` to `DigitalTwin.Abstractions`, populate it in `Ride.ToTelemetry`; verify telemetry tests for idle, running and unavailable states
+- [x] 2.1 Add `AutoModeTelemetry` to `DigitalTwin.Abstractions`, populate it in `Ride.ToTelemetry`; verify telemetry tests for idle, running and unavailable states
 - [ ] 2.2 Add `StartAutoMode` and `StopAutoMode` feature slices (command + handler with `ExecuteAsync`, `EnrichActivity`, ADR-0009 metrics); verify handler tests including rejection paths
 - [ ] 2.3 Map `POST /ride/auto/start` and `POST /ride/auto/stop` in `DigitalTwinEndpoints` with 400 on `DomainValidationException`; verify endpoint tests and that `dotnet test` on the DigitalTwin test project passes with module line coverage ≥ 80 %
 

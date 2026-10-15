@@ -536,7 +536,8 @@ public sealed class Ride : DomainModel
             _mill.BrakesEngaged,
             _mill.ToTelemetry(),
             hubs,
-            gondolas);
+            gondolas,
+            new AutoModeTelemetry(IsAutoActive, _autoState, CanStartAutoMode, CanStopAutoMode));
     }
 
     /// <summary>Runs the entry side-effects for the state being entered.</summary>
