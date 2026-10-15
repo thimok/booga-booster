@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import { OperationControls } from './controls/operation-controls';
+import { EffectsControls } from '../effects/effects-controls';
 import { GondolaPanel } from './panels/gondola-panel/gondola-panel';
 import { SecurityPanel } from './panels/security-panel/security-panel';
 import { SpeedPanel } from './panels/speed-panel/speed-panel';
@@ -22,6 +23,7 @@ import { WeatherPanel } from '../weather/weather-panel/weather-panel';
   imports: [
     StatusSummary,
     OperationControls,
+    EffectsControls,
     RideVisualization,
     SecurityPanel,
     SpeedPanel,

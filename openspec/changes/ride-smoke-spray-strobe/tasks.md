@@ -7,7 +7,7 @@
 ## 2. Effects controls UI
 
 - [x] 2.1 Consult the `primeng` MCP server for `ToggleSwitch` and `Slider`, then add the `EffectsControls` component (labelled region, three toggles + intensity sliders, strobe photosensitivity warning, spray-unavailable reason, reduced-motion explanation)
-- [ ] 2.2 Host `EffectsControls` in the dashboard's left rail below `OperationControls`
+- [x] 2.2 Host `EffectsControls` in the dashboard's left rail below `OperationControls`
 - [ ] 2.3 Add Vitest specs (toggle, clamping, disabled states, keyboard) and an `effects-controls.a11y.spec.ts` axe-core spec
 
 ## 3. Visualization effects
