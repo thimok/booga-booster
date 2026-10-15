@@ -40,6 +40,21 @@ number buried in the physics.
 | Wind cutoff | `windMax` | 18 | m/s |
 | E-stop decel ramp | — | 8 | s |
 
+## Auto programme
+
+Derived in [06-auto-programme.md](06-auto-programme.md). Peaks are held below the over-speed
+warn thresholds of the `passenger-safety` proposal.
+
+| Parameter | Constant | Default | Unit |
+|-----------|----------|--------:|------|
+| Spin-up duration | `AutoSpinUpSeconds` | 30 | s |
+| Cruise duration | `AutoCruiseSeconds` | 45 | s |
+| Wind-down duration | `AutoWindDownSeconds` | 20 | s |
+| Mill peak throttle | `AutoMillPeakPowerPercent` | 40 | % |
+| Hub peak throttle | `AutoHubPeakPowerPercent` | 40 | % |
+| Mill warn speed | `MillWarnRpm` | 15 | rpm |
+| Hub warn speed | `HubWarnRpm` | 26 | rpm |
+
 ## Loss-model coefficients
 
 Not fixed by the plan — picked to give the sanity-check behaviour below and locked in as the

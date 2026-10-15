@@ -2,7 +2,7 @@
 
 ## 1. Auto programme domain
 
-- [ ] 1.1 Add auto-programme constants (phase durations, peak mill/hub power) to `RideParameters` and document the timeline and rationale in `docs/` plus `docs/appendix-parameters.md`; verify the documented values match the constants
+- [x] 1.1 Add auto-programme constants (phase durations, peak mill/hub power) to `RideParameters` and document the timeline and rationale in `docs/` plus `docs/appendix-parameters.md`; verify the documented values match the constants
 - [ ] 1.2 Add `AutoModeState` and the `AutoProgramme` domain type (pure function of elapsed time → phase and power setpoints); verify xUnit tests cover ramps, cruise hold, phase boundaries and determinism
 - [ ] 1.3 Integrate the programme into `Ride`: start from `Safe`, apply setpoints in `Advance`, hand off to `Stopping` at the end, stop-auto, clear on rest/Emergency Stop; verify domain tests for each spec scenario of start, stop, emergency stop and completion
 - [ ] 1.4 Add the manual-control lock (`EnsureManualControl`) to every manual mutator and to `Started`/`Stopping` requests, and drop those from `AvailableTransitions` while active; verify tests that each guarded operation is rejected during auto and accepted after
