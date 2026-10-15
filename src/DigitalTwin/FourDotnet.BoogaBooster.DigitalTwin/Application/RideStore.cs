@@ -194,4 +194,33 @@ public sealed class RideStore : IRideStore, IRideTelemetryProvider
             return _ride.ToTelemetry();
         }
     }
+
+    public AutoModeState AutoState
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _ride.AutoState;
+            }
+        }
+    }
+
+    public RideTelemetry StartAutoMode()
+    {
+        lock (_gate)
+        {
+            _ride.StartAutoMode();
+            return _ride.ToTelemetry();
+        }
+    }
+
+    public RideTelemetry StopAutoMode()
+    {
+        lock (_gate)
+        {
+            _ride.StopAutoMode();
+            return _ride.ToTelemetry();
+        }
+    }
 }

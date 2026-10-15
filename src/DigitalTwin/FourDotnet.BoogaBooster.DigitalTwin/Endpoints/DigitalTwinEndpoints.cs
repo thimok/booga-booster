@@ -11,7 +11,9 @@ using FourDotnet.BoogaBooster.DigitalTwin.Features.SetHubEngineDirection;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.SetHubEnginePower;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.SetMainEngineDirection;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.SetMainEnginePower;
+using FourDotnet.BoogaBooster.DigitalTwin.Features.StartAutoMode;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.StartRide;
+using FourDotnet.BoogaBooster.DigitalTwin.Features.StopAutoMode;
 using FourDotnet.BoogaBooster.DigitalTwin.Features.StopRide;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -182,6 +184,20 @@ public static class DigitalTwinEndpoints
             CancellationToken cancellationToken) =>
             DispatchAsync(() => handler.HandleAsync(new StopRideCommand(), cancellationToken)))
         .WithName("StopRide");
+
+        // Auto mode: a predefined programme that runs the whole ride sequence. Both
+        // endpoints take no body; an illegal request surfaces as a 400.
+        group.MapPost("/auto/start", (
+            ICommandHandler<StartAutoModeCommand> handler,
+            CancellationToken cancellationToken) =>
+            DispatchAsync(() => handler.HandleAsync(new StartAutoModeCommand(), cancellationToken)))
+        .WithName("StartAutoMode");
+
+        group.MapPost("/auto/stop", (
+            ICommandHandler<StopAutoModeCommand> handler,
+            CancellationToken cancellationToken) =>
+            DispatchAsync(() => handler.HandleAsync(new StopAutoModeCommand(), cancellationToken)))
+        .WithName("StopAutoMode");
 
         return endpoints;
     }

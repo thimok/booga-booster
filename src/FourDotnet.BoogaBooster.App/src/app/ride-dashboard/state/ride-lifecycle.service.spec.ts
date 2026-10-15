@@ -7,6 +7,8 @@ import { RideLifecycleService } from './ride-lifecycle.service';
 
 const TELEMETRY_URL = '/api/ride/telemetry';
 const STATE_URL = '/api/ride/state';
+const AUTO_START_URL = '/api/ride/auto/start';
+const AUTO_STOP_URL = '/api/ride/auto/stop';
 
 const POLL_MS = 1000;
 
@@ -98,5 +100,63 @@ describe('RideLifecycleService', () => {
     // The next refresh simply reflects the ride's real, unchanged state.
     http.expectOne(TELEMETRY_URL).flush({ state: 'Idle', availableTransitions: ['Loading'] });
     expect(service.state()).toBe('idle');
+  });
+
+  it('defaults autoMode to inactive when the telemetry carries none', () => {
+    const service = TestBed.inject(RideLifecycleService);
+    http.expectOne(TELEMETRY_URL).flush({ state: 'Idle', availableTransitions: [] });
+
+    expect(service.autoMode().isActive).toBe(false);
+    expect(service.autoMode().phase).toBe('inactive');
+  });
+
+  it('projects the polled autoMode onto the autoMode signal', () => {
+    const service = TestBed.inject(RideLifecycleService);
+    http.expectOne(TELEMETRY_URL).flush({
+      state: 'Started',
+      availableTransitions: ['EmergencyStop'],
+      autoMode: { isActive: true, phase: 2, canStart: false, canStop: true },
+    });
+
+    expect(service.autoMode()).toEqual({
+      isActive: true,
+      phase: 'cruise',
+      canStart: false,
+      canStop: true,
+    });
+  });
+
+  it('startAuto posts to the start endpoint without a body and then refreshes', () => {
+    const service = TestBed.inject(RideLifecycleService);
+    http.expectOne(TELEMETRY_URL).flush({ state: 'Safe', availableTransitions: [] });
+
+    service.startAuto();
+
+    const postReq = http.expectOne(AUTO_START_URL);
+    expect(postReq.request.method).toBe('POST');
+    expect(postReq.request.body).toBeNull();
+    postReq.flush(null, { status: 202, statusText: 'Accepted' });
+
+    http.expectOne(TELEMETRY_URL).flush({
+      state: 'Started',
+      availableTransitions: ['EmergencyStop'],
+      autoMode: { isActive: true, phase: 'SpinUp', canStart: false, canStop: true },
+    });
+    expect(service.autoMode().isActive).toBe(true);
+    expect(service.autoMode().phase).toBe('spin-up');
+  });
+
+  it('stopAuto posts to the stop endpoint and tolerates a rejection', () => {
+    const service = TestBed.inject(RideLifecycleService);
+    http.expectOne(TELEMETRY_URL).flush({ state: 'Safe', availableTransitions: [] });
+
+    expect(() => service.stopAuto()).not.toThrow();
+
+    const postReq = http.expectOne(AUTO_STOP_URL);
+    expect(postReq.request.method).toBe('POST');
+    postReq.error(new ProgressEvent('error'), { status: 400 });
+
+    http.expectOne(TELEMETRY_URL).flush({ state: 'Safe', availableTransitions: [] });
+    expect(service.autoMode().isActive).toBe(false);
   });
 });

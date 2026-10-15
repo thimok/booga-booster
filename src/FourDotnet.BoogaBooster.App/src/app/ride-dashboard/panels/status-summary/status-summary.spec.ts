@@ -143,4 +143,13 @@ describe('StatusSummary', () => {
     expect(security?.textContent).toContain('✓');
     expect(security?.textContent).toContain('Secured');
   });
+
+  it('disables Stopping and keeps Emergency stop enabled while auto mode runs', () => {
+    // During auto mode the server offers only Emergency Stop.
+    const { host } = render('started', ['emergency-stop']);
+
+    expect(buttonFor(host, 'Stopping').disabled).toBe(true);
+    expect(buttonFor(host, 'Started').disabled).toBe(true);
+    expect(buttonFor(host, 'Emergency stop').disabled).toBe(false);
+  });
 });
